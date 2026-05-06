@@ -95,7 +95,7 @@ function InventoryTable({ data }) {
             const isExpired = validExpiries.length > 0 && validExpiries[0] < new Date();
 
             return (
-              <tr key={i}>
+              <tr key={i} style={{ opacity: item.status === "Out of Stock" ? 0.5 : 1 }}>
                 {/* Purple # matches the number to use in WhatsApp commands */}
                 <td style={{ fontWeight: "bold", color: "#6366f1" }}>#{i + 1}</td>
                 <td>{item.productName || "Unknown"}</td>
@@ -108,8 +108,9 @@ function InventoryTable({ data }) {
                 </td>
                 <td style={{
                   color: item.status === "In Stock" ? "green"
-                       : item.status === "Needs Attention" ? "orange"
-                       : "red",
+                  : item.status === "Needs Attention" ? "orange"
+                  : item.status === "Out of Stock" ? "#888"
+                  : "red",
                   fontWeight: "bold"
                 }}>
                   {item.status}
