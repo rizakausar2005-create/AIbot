@@ -47,21 +47,23 @@ function InventoryTable({ data }) {
   const parseExpiry = (str) => {
     if (!str || str === "Not visible" || str === "N/A") return null;
 
-    // MM/YY → treat as 20YY
-    if (/^\d{2}\/\d{2}$/.test(str.trim())) {
-      const [mm, yy] = str.trim().split("/");
-      return new Date(`20${yy}`, parseInt(mm) - 1);
+    // M/YY or MM/YY → 20YY (e.g. 7/26 or 07/26)
+    if (/^\d{1,2}\/\d{2}$/.test(str.trim())) {
+        const [mm, yy] = str.trim().split("/");
+        return new Date(2000 + parseInt(yy), parseInt(mm) - 1);
     }
-    // MM/YYYY
-    if (/^\d{2}\/\d{4}$/.test(str.trim())) {
-      const [mm, yyyy] = str.trim().split("/");
-      return new Date(parseInt(yyyy), parseInt(mm) - 1);
+
+    // M/YYYY or MM/YYYY (e.g. 7/2026 or 07/2026)
+    if (/^\d{1,2}\/\d{4}$/.test(str.trim())) {
+        const [mm, yyyy] = str.trim().split("/");
+        return new Date(parseInt(yyyy), parseInt(mm) - 1);
     }
+
     // "Nov 2027" or "November 2027"
     const parsed = new Date(str);
     if (!isNaN(parsed)) return parsed;
     return null;
-  };
+};
 
   return (
     <div className="table-container">
@@ -182,26 +184,23 @@ function AlertsPage() {
         <h2>🔥 Flash Deals — Near Expiry</h2>
         {deals.length === 0 ? <p>No active deals.</p> : (
           <table>
-            <thead>
-              <tr>
-                <th>#</th><th>Product</th><th>Batch</th><th>Expiry</th>
-                <th>Qty</th><th>Discount</th><th>Days Left</th>
-              </tr>
-            </thead>
-            <tbody>
-              {deals.map((d, i) => (
-                <tr key={i}>
-                  <td>{i + 1}</td>
-                  <td>{d.item}</td>
-                  <td>{d.batchId}</td>
-                  <td>{d.expiry}</td>
-                  <td>{d.batchQty}</td>
-                  {/* Discount scales with urgency: 5% → 10% → 20% */}
-                  <td style={{ color: "red", fontWeight: "bold" }}>{d.suggested_discount}</td>
-                  <td style={{ color: d.daysLeft < 30 ? "red" : "orange" }}>{d.daysLeft}d</td>
-                </tr>
-              ))}
-            </tbody>
+            <thead><tr><th>#</th><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Discount</th><th>Urgency</th><th>Months Left</th></tr></thead>
+              <tbody>
+                {deals.map((d, i) => (
+                  <tr key={i}>
+                    <td>{i + 1}</td>
+                    <td>{d.item}</td>
+                    <td>{d.batchId}</td>
+                    <td>{d.expiry}</td>
+                    <td>{d.batchQty}</td>
+                    <td style={{ color: "red", fontWeight: "bold" }}>{d.suggested_discount}</td>
+                    <td>{d.urgency}</td>
+                    <td style={{ color: d.monthsLeft <= 1 ? "red" : d.monthsLeft <= 2 ? "orange" : "goldenrod", fontWeight: "bold" }}>
+                      {d.monthsLeft} month(s)
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
           </table>
         )}
         <p style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>
