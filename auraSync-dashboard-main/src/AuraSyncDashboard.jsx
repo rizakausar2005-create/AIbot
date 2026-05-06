@@ -3,8 +3,15 @@ import SalesChart from "./SalesChart";
 import MonthlyChart from "./MonthlyChart";
 import TopProductsChart from "./TopProductsChart";
 
+// ============================================================
+// BASE API URL — points to AuraSync WhatsApp bot backend
+// ============================================================
 const API = "http://localhost:3000/api";
 
+// ============================================================
+// SIDEBAR — Navigation between dashboard sections
+// Active page is highlighted, clicking switches the view
+// ============================================================
 function Sidebar({ active, setActive }) {
   const pages = ["Dashboard", "Inventory", "Customer Carts", "Alerts", "Admin Panel"];
   return (
@@ -14,10 +21,12 @@ function Sidebar({ active, setActive }) {
         <button
           key={p}
           onClick={() => setActive(p)}
-          style={{ fontWeight: active === p ? "bold" : "normal",
-                   background: active === p ? "#334155" : "transparent",
-                   width: "100%", textAlign: "left", padding: "10px 16px",
-                   border: "none", color: "white", cursor: "pointer", borderRadius: "6px" }}
+          style={{
+            fontWeight: active === p ? "bold" : "normal",
+            background: active === p ? "#334155" : "transparent",
+            width: "100%", textAlign: "left", padding: "10px 16px",
+            border: "none", color: "white", cursor: "pointer", borderRadius: "6px"
+          }}
         >
           {p}
         </button>
@@ -26,34 +35,81 @@ function Sidebar({ active, setActive }) {
   );
 }
 
+// ============================================================
+// INVENTORY TABLE — Shows all In Stock + Needs Attention items
+// # column matches the index used in WhatsApp !update, !inspect, !approve commands
+// Expiry parser handles all formats the AI vision model outputs
+// ============================================================
 function InventoryTable({ data }) {
+
+  // Handles all expiry formats produced by the AI scanner:
+  // "11/27" → Nov 2027, "11/2027" → Nov 2027, "Nov 2027" → Nov 2027
+  const parseExpiry = (str) => {
+    if (!str || str === "Not visible" || str === "N/A") return null;
+
+    // MM/YY → treat as 20YY
+    if (/^\d{2}\/\d{2}$/.test(str.trim())) {
+      const [mm, yy] = str.trim().split("/");
+      return new Date(`20${yy}`, parseInt(mm) - 1);
+    }
+    // MM/YYYY
+    if (/^\d{2}\/\d{4}$/.test(str.trim())) {
+      const [mm, yyyy] = str.trim().split("/");
+      return new Date(parseInt(yyyy), parseInt(mm) - 1);
+    }
+    // "Nov 2027" or "November 2027"
+    const parsed = new Date(str);
+    if (!isNaN(parsed)) return parsed;
+    return null;
+  };
+
   return (
     <div className="table-container">
       <h2>Live Inventory</h2>
       <table>
         <thead>
           <tr>
-            <th>#</th><th>Product</th><th>Size</th><th>Category</th>
-            <th>Total Qty</th><th>Batches</th><th>Earliest Expiry</th><th>Status</th>
+            <th>#</th>
+            <th>Product</th>
+            <th>Size</th>
+            <th>Category</th>
+            <th>Total Qty</th>
+            <th>Batches</th>
+            <th>Earliest Expiry</th>
+            <th>Status</th>
           </tr>
         </thead>
         <tbody>
           {data.map((item, i) => {
             const validExpiries = (item.batches || [])
-              .map(b => new Date(b.expiry)).filter(d => !isNaN(d)).sort((a, b) => a - b);
+              .map(b => parseExpiry(b.expiry))
+              .filter(d => d !== null)
+              .sort((a, b) => a - b);
+
             const earliestExpiry = validExpiries.length > 0
-              ? validExpiries[0].toLocaleDateString("en-IN") : "N/A";
+              ? validExpiries[0].toLocaleDateString("en-IN", { month: "short", year: "numeric" })
+              : "N/A";
+
+            const isExpired = validExpiries.length > 0 && validExpiries[0] < new Date();
+
             return (
               <tr key={i}>
-                <td>{i + 1}</td>
+                {/* Purple # matches the number to use in WhatsApp commands */}
+                <td style={{ fontWeight: "bold", color: "#6366f1" }}>#{i + 1}</td>
                 <td>{item.productName || "Unknown"}</td>
                 <td>{item.size || "N/A"}</td>
                 <td>{item.category || "N/A"}</td>
                 <td>{item.totalQuantity ?? 0}</td>
                 <td>{item.batches?.length ?? 0}</td>
-                <td>{earliestExpiry}</td>
-                <td style={{ color: item.status === "In Stock" ? "green"
-                    : item.status === "Needs Attention" ? "orange" : "red", fontWeight: "bold" }}>
+                <td style={{ color: isExpired ? "red" : "inherit" }}>
+                  {earliestExpiry} {isExpired ? "⛔ EXPIRED" : ""}
+                </td>
+                <td style={{
+                  color: item.status === "In Stock" ? "green"
+                       : item.status === "Needs Attention" ? "orange"
+                       : "red",
+                  fontWeight: "bold"
+                }}>
                   {item.status}
                 </td>
               </tr>
@@ -61,22 +117,36 @@ function InventoryTable({ data }) {
           })}
         </tbody>
       </table>
+      <p style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>
+        💡 Use <strong>!expired</strong> on WhatsApp to list expired batches. Remove them with <strong>!discard [#]</strong>.
+      </p>
+      <p style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
+        💡 Use the # number above with <strong>!update</strong>, <strong>!inspect</strong>, and <strong>!approve</strong> on WhatsApp.
+      </p>
     </div>
   );
 }
 
+// ============================================================
+// CARTS PAGE — Live view of what customers have selected
+// Populated from active_carts MongoDB collection
+// Carts are cleared automatically after !checkout
+// ============================================================
 function CartsPage({ cartData }) {
   return (
     <div className="table-container">
       <h2>Active Customer Carts</h2>
       {cartData.length === 0 ? <p>No active carts right now.</p> : (
         <table>
-          <thead><tr><th>#</th><th>Customer ID</th><th>Item</th><th>Added At</th></tr></thead>
+          <thead>
+            <tr><th>#</th><th>Customer ID</th><th>Item</th><th>Added At</th></tr>
+          </thead>
           <tbody>
             {cartData.map((cart, i) => (
               <tr key={i}>
                 <td>{i + 1}</td>
-                <td>{cart.customerId?.replace("@c.us", "") || "Unknown"}</td>
+                {/* Strip WhatsApp suffix from customer ID for cleaner display */}
+                <td>{cart.customerId?.replace("@c.us", "").replace("@lid", "") || "Unknown"}</td>
                 <td>{cart.item}</td>
                 <td>{cart.timestamp ? new Date(cart.timestamp).toLocaleString("en-IN") : "N/A"}</td>
               </tr>
@@ -84,10 +154,18 @@ function CartsPage({ cartData }) {
           </tbody>
         </table>
       )}
+      <p style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>
+        💡 These are live customer selections. Customers confirm orders with <strong>!checkout</strong> on WhatsApp.
+      </p>
     </div>
   );
 }
 
+// ============================================================
+// ALERTS PAGE — Flash deals and pending attention items
+// Flash deals are auto-generated by syncFlashDeals() in bot.js
+// Pending items are products with missing/unverified fields
+// ============================================================
 function AlertsPage() {
   const [deals, setDeals] = useState([]);
   const [pending, setPending] = useState([]);
@@ -99,11 +177,17 @@ function AlertsPage() {
 
   return (
     <div>
+      {/* Flash Deals — auto-populated when batch expiry is within 90 days */}
       <div className="table-container">
         <h2>🔥 Flash Deals — Near Expiry</h2>
         {deals.length === 0 ? <p>No active deals.</p> : (
           <table>
-            <thead><tr><th>#</th><th>Product</th><th>Batch</th><th>Expiry</th><th>Qty</th><th>Discount</th><th>Days Left</th></tr></thead>
+            <thead>
+              <tr>
+                <th>#</th><th>Product</th><th>Batch</th><th>Expiry</th>
+                <th>Qty</th><th>Discount</th><th>Days Left</th>
+              </tr>
+            </thead>
             <tbody>
               {deals.map((d, i) => (
                 <tr key={i}>
@@ -112,6 +196,7 @@ function AlertsPage() {
                   <td>{d.batchId}</td>
                   <td>{d.expiry}</td>
                   <td>{d.batchQty}</td>
+                  {/* Discount scales with urgency: 5% → 10% → 20% */}
                   <td style={{ color: "red", fontWeight: "bold" }}>{d.suggested_discount}</td>
                   <td style={{ color: d.daysLeft < 30 ? "red" : "orange" }}>{d.daysLeft}d</td>
                 </tr>
@@ -119,13 +204,19 @@ function AlertsPage() {
             </tbody>
           </table>
         )}
+        <p style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>
+          💡 To broadcast these deals to all past customers, type <strong>!broadcast deals</strong> on WhatsApp. Enable broadcasts first with <strong>!deals on</strong>.
+        </p>
       </div>
 
+      {/* Pending Items — products with flagged batches needing manual correction */}
       <div className="table-container" style={{ marginTop: "24px" }}>
         <h2>⚠️ Pending — Needs Attention</h2>
         {pending.length === 0 ? <p style={{ color: "green" }}>✅ All items are clean.</p> : (
           <table>
-            <thead><tr><th>#</th><th>Product</th><th>Size</th><th>Status</th><th>Flagged Batches</th></tr></thead>
+            <thead>
+              <tr><th>#</th><th>Product</th><th>Size</th><th>Status</th><th>Flagged Batches</th></tr>
+            </thead>
             <tbody>
               {pending.map((item, i) => (
                 <tr key={i}>
@@ -145,11 +236,19 @@ function AlertsPage() {
             </tbody>
           </table>
         )}
+        <p style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>
+          💡 Fix missing fields with <strong>!update [#] expiry=Nov2027</strong> or <strong>!update [#] name=ProductName</strong>. Confirm with <strong>!approve [#]</strong>.
+        </p>
       </div>
     </div>
   );
 }
 
+// ============================================================
+// ADMIN PANEL — Full stats overview + order history
+// Stats pulled from /api/stats, orders from /api/orders
+// Orders sorted by most recent first (handled in bot.js)
+// ============================================================
 function AdminPanel() {
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState(null);
@@ -163,6 +262,7 @@ function AdminPanel() {
     <div>
       <h2>Admin Panel</h2>
 
+      {/* Stats cards — color coded by urgency */}
       {stats && (
         <div className="cards" style={{ marginBottom: "24px" }}>
           {[
@@ -181,18 +281,22 @@ function AdminPanel() {
         </div>
       )}
 
+      {/* Order history — most recent first */}
       <div className="table-container">
         <h2>📦 Order History</h2>
         {orders.length === 0 ? <p>No orders yet.</p> : (
           <table>
             <thead>
-              <tr><th>#</th><th>Customer</th><th>Total (₹)</th><th>Items</th><th>Status</th><th>Date</th></tr>
+              <tr>
+                <th>#</th><th>Customer</th><th>Total (₹)</th>
+                <th>Items</th><th>Status</th><th>Date</th>
+              </tr>
             </thead>
             <tbody>
               {orders.map((order, i) => (
                 <tr key={i}>
                   <td>{i + 1}</td>
-                  <td>{order.customerId?.replace("@c.us", "") || "Unknown"}</td>
+                  <td>{order.customerId?.replace("@c.us", "").replace("@lid", "") || "Unknown"}</td>
                   <td>₹{order.totalValue}</td>
                   <td>{order.items?.length ?? 0}</td>
                   <td style={{ color: order.status === "Pending Fulfillment" ? "orange" : "green" }}>
@@ -204,23 +308,38 @@ function AdminPanel() {
             </tbody>
           </table>
         )}
+        <p style={{ fontSize: "12px", color: "#888", marginTop: "8px" }}>
+          💡 Orders placed via <strong>!checkout</strong>. Contact customer directly on WhatsApp to confirm fulfillment.
+        </p>
       </div>
     </div>
   );
 }
 
+// ============================================================
+// MAIN DASHBOARD — Root component
+// Fetches shared data (inventory, carts, stats) every 30 seconds
+// Passes data down to child pages as props to avoid duplicate fetches
+// ============================================================
 export default function AuraSyncDashboard() {
   const [active, setActive] = useState("Dashboard");
   const [cartData, setCartData] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
   const [stats, setStats] = useState(null);
 
+  // Auto-refresh every 30 seconds — keeps dashboard live without hammering the server
   useEffect(() => {
-    fetch(`${API}/carts`).then(r => r.json()).then(setCartData).catch(() => {});
-    fetch(`${API}/inventory`).then(r => r.json()).then(setInventoryData).catch(() => {});
-    fetch(`${API}/stats`).then(r => r.json()).then(setStats).catch(() => {});
+    const fetchAll = () => {
+      fetch(`${API}/carts`).then(r => r.json()).then(setCartData).catch(() => {});
+      fetch(`${API}/inventory`).then(r => r.json()).then(setInventoryData).catch(() => {});
+      fetch(`${API}/stats`).then(r => r.json()).then(setStats).catch(() => {});
+    };
+    fetchAll();
+    const interval = setInterval(fetchAll, 30000);
+    return () => clearInterval(interval); // cleanup on unmount
   }, []);
 
+  // Cart data aggregations for charts on Dashboard home
   const getWeeklySales = () => {
     const days = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
     cartData.forEach(item => {
@@ -247,14 +366,19 @@ export default function AuraSyncDashboard() {
     return Object.keys(count).map(key => ({ name: key, sales: count[key] }));
   };
 
+  // Route to the correct page based on sidebar selection
   const renderPage = () => {
     switch (active) {
-      case "Inventory": return <InventoryTable data={inventoryData} />;
+      case "Inventory":      return <InventoryTable data={inventoryData} />;
       case "Customer Carts": return <CartsPage cartData={cartData} />;
-      case "Alerts": return <AlertsPage />;
-      case "Admin Panel": return <AdminPanel />;
+      case "Alerts":         return <AlertsPage />;
+      case "Admin Panel":    return <AdminPanel />;
       default: return (
         <div>
+          {/* Last refreshed timestamp — updates every render cycle */}
+          <p style={{ fontSize: "12px", color: "#888", marginBottom: "16px" }}>
+            🕒 Last refreshed: {new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
+          </p>
           <div className="cards">
             {[
               ["Total Products", stats?.totalProducts, "inherit"],
