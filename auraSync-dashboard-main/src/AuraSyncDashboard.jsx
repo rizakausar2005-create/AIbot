@@ -6,7 +6,7 @@ import TopProductsChart from "./TopProductsChart";
 // ============================================================
 // BASE API URL — points to AuraSync WhatsApp bot backend
 // ============================================================
-const API = "http://localhost:3000/api";
+const API = "http://172.19.1.213:3000/api";
 
 // ============================================================
 // SIDEBAR — Navigation between dashboard sections
@@ -459,22 +459,6 @@ export default function AuraSyncDashboard() {
     cartData.forEach(item => { count[item.item] = (count[item.item] || 0) + 1; });
     return Object.keys(count).map(key => ({ name: key, sales: count[key] }));
   };
-  
-  const getActivityFeed = () => {
-  const inventoryActivities = inventoryData.map((item) => ({
-    text: `🤖 AI Scanner logged ${item.productName || item.item_details}`,
-    time: new Date(item.scannedAt || item.timestamp),
-  }));
-
-  const cartActivities = cartData.map((item) => ({
-    text: `🛒 Customer added ${item.item}`,
-    time: new Date(item.timestamp),
-  }));
-
-  return [...inventoryActivities, ...cartActivities]
-    .sort((a, b) => b.time - a.time)
-    .slice(0, 10);
-};
 
   const getActivityFeed = () => {
     const feed = [];
