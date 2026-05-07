@@ -172,6 +172,7 @@ function CartsPage({ cartData }) {
 function AlertsPage() {
   const [deals, setDeals] = useState([]);
   const [pending, setPending] = useState([]);
+  const [selectedScan, setSelectedScan] = useState(null);
 
   useEffect(() => {
     fetch(`${API}/deals`).then(r => r.json()).then(setDeals).catch(() => {});
@@ -215,7 +216,14 @@ function AlertsPage() {
         {pending.length === 0 ? <p style={{ color: "green" }}>✅ All items are clean.</p> : (
           <table>
             <thead>
-              <tr><th>#</th><th>Product</th><th>Size</th><th>Status</th><th>Flagged Batches</th></tr>
+              <tr>
+  <th>#</th>
+  <th>Product</th>
+  <th>Size</th>
+  <th>Status</th>
+  <th>Flagged Batches</th>
+  <th>AI Scan</th>
+</tr>
             </thead>
             <tbody>
               {pending.map((item, i) => (
@@ -231,6 +239,21 @@ function AlertsPage() {
                       </div>
                     ))}
                   </td>
+                  <td>
+  <button
+    onClick={() => setSelectedScan(item.batches?.[0]?.rawScan)}
+    style={{
+      background: "#6366f1",
+      color: "white",
+      border: "none",
+      padding: "8px 12px",
+      borderRadius: "8px",
+      cursor: "pointer"
+    }}
+  >
+    View AI Raw Scan
+  </button>
+</td>
                 </tr>
               ))}
             </tbody>
@@ -240,6 +263,61 @@ function AlertsPage() {
           💡 Fix missing fields with <strong>!update [#] expiry=Nov2027</strong> or <strong>!update [#] name=ProductName</strong>. Confirm with <strong>!approve [#]</strong>.
         </p>
       </div>
+            {selectedScan && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.7)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 999
+          }}
+        >
+          <div
+            style={{
+              background: "#111827",
+              color: "white",
+              padding: "24px",
+              borderRadius: "16px",
+              width: "60%",
+              maxHeight: "80vh",
+              overflowY: "auto"
+            }}
+          >
+            <h2>🤖 AI Raw Scan</h2>
+
+            <pre
+              style={{
+                whiteSpace: "pre-wrap",
+                marginTop: "16px",
+                color: "#d1d5db"
+              }}
+            >
+              {selectedScan}
+            </pre>
+
+            <button
+              onClick={() => setSelectedScan(null)}
+              style={{
+                marginTop: "20px",
+                background: "red",
+                color: "white",
+                border: "none",
+                padding: "10px 16px",
+                borderRadius: "8px",
+                cursor: "pointer"
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -313,6 +391,7 @@ function AdminPanel() {
         </p>
       </div>
     </div>
+    
   );
 }
 
@@ -365,6 +444,22 @@ export default function AuraSyncDashboard() {
     cartData.forEach(item => { count[item.item] = (count[item.item] || 0) + 1; });
     return Object.keys(count).map(key => ({ name: key, sales: count[key] }));
   };
+  
+  const getActivityFeed = () => {
+  const inventoryActivities = inventoryData.map((item) => ({
+    text: `🤖 AI Scanner logged ${item.productName || item.item_details}`,
+    time: new Date(item.scannedAt || item.timestamp),
+  }));
+
+  const cartActivities = cartData.map((item) => ({
+    text: `🛒 Customer added ${item.item}`,
+    time: new Date(item.timestamp),
+  }));
+
+  return [...inventoryActivities, ...cartActivities]
+    .sort((a, b) => b.time - a.time)
+    .slice(0, 10);
+};
 
   // Route to the correct page based on sidebar selection
   const renderPage = () => {
@@ -396,6 +491,53 @@ export default function AuraSyncDashboard() {
           <SalesChart data={getWeeklySales()} />
           <MonthlyChart data={getMonthlySales()} />
           <TopProductsChart data={getTopProducts()} />
+          <div
+  style={{
+    marginTop: "24px",
+    background: "#111827",
+    padding: "20px",
+    borderRadius: "16px",
+    boxShadow: "0 0 20px rgba(99,102,241,0.3)"
+  }}
+>
+  <h2
+    style={{
+      color: "white",
+      marginBottom: "16px"
+    }}
+  >
+    ⚡ Live AI Activity Feed
+  </h2>
+
+  {getActivityFeed().length === 0 ? (
+    <p style={{ color: "#9ca3af" }}>
+      No recent activity yet...
+    </p>
+  ) : (
+    getActivityFeed().map((activity, index) => (
+      <div
+        key={index}
+        style={{
+          background: "#1f2937",
+          padding: "14px",
+          borderRadius: "12px",
+          marginBottom: "12px",
+          borderLeft: "5px solid #6366f1",
+          color: "white"
+        }}
+      >
+        <p style={{ margin: 0 }}>
+          {activity.text}
+        </p>
+
+        <small style={{ color: "#9ca3af" }}>
+          {activity.time.toLocaleString("en-IN")}
+        </small>
+      </div>
+    ))
+  )}
+</div>
+          
           <InventoryTable data={inventoryData} />
         </div>
       );
