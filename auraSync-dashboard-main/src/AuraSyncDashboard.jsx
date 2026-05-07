@@ -197,8 +197,23 @@ function AlertsPage() {
                     <td>{d.batchQty}</td>
                     <td style={{ color: "red", fontWeight: "bold" }}>{d.suggested_discount}</td>
                     <td>{d.urgency}</td>
-                    <td style={{ color: d.monthsLeft <= 1 ? "red" : d.monthsLeft <= 2 ? "orange" : "goldenrod", fontWeight: "bold" }}>
-                      {d.monthsLeft} month(s)
+                    <td>
+                      {(() => {
+                        // Your exact logic
+                        const barColor = d.monthsLeft > 6 ? "#22c55e" : d.monthsLeft >= 3 ? "#eab308" : "#ef4444";
+                        const barWidth = Math.min((d.monthsLeft / 6) * 100, 100) + "%";
+                        
+                        return (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                            <span style={{ fontSize: "12px", color: barColor, fontWeight: "bold" }}>{d.monthsLeft} mo. left</span>
+                            {/* The visual progress bar track */}
+                            <div style={{ width: "100%", minWidth: "80px", background: "#334155", borderRadius: "4px", height: "8px", overflow: "hidden" }}>
+                              {/* The colored fill */}
+                              <div style={{ width: barWidth, background: barColor, height: "100%", transition: "width 1s ease-in-out" }}></div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}
@@ -461,6 +476,40 @@ export default function AuraSyncDashboard() {
     .slice(0, 10);
 };
 
+  const getActivityFeed = () => {
+    const feed = [];
+    
+    // 1. Grab AI Scans
+    inventoryData.forEach(item => {
+      (item.batches || []).forEach(batch => {
+        if (batch.scannedAt) {
+          feed.push({
+            type: "scan",
+            time: new Date(batch.scannedAt),
+            text: `🤖 AI logged ${item.productName} — Batch ${batch.batchId}`
+          });
+        }
+      });
+    });
+
+    // 2. Grab Customer Carts
+    cartData.forEach(cart => {
+      if (cart.timestamp) {
+        // Clean up customer ID and item name for the UI
+        const cleanId = cart.customerId?.replace("@c.us", "").replace("@lid", "") || "Unknown";
+        const cleanItem = cart.item?.split('|')[0].replace('📦 *Product:*', '').trim();
+        feed.push({
+          type: "cart",
+          time: new Date(cart.timestamp),
+          text: `🛒 Customer ${cleanId} added ${cleanItem.slice(0, 30)}...`
+        });
+      }
+    });
+
+    // Sort by newest first and grab the top 5
+    return feed.sort((a, b) => b.time - a.time).slice(0, 5);
+  };
+
   // Route to the correct page based on sidebar selection
   const renderPage = () => {
     switch (active) {
@@ -491,7 +540,8 @@ export default function AuraSyncDashboard() {
           <SalesChart data={getWeeklySales()} />
           <MonthlyChart data={getMonthlySales()} />
           <TopProductsChart data={getTopProducts()} />
-          <div
+
+            <div
   style={{
     marginTop: "24px",
     background: "#111827",
@@ -537,7 +587,6 @@ export default function AuraSyncDashboard() {
     ))
   )}
 </div>
-          
           <InventoryTable data={inventoryData} />
         </div>
       );
