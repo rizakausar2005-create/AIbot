@@ -460,21 +460,6 @@ export default function AuraSyncDashboard() {
     return Object.keys(count).map(key => ({ name: key, sales: count[key] }));
   };
   
-  const getActivityFeed = () => {
-  const inventoryActivities = inventoryData.map((item) => ({
-    text: `🤖 AI Scanner logged ${item.productName || item.item_details}`,
-    time: new Date(item.scannedAt || item.timestamp),
-  }));
-
-  const cartActivities = cartData.map((item) => ({
-    text: `🛒 Customer added ${item.item}`,
-    time: new Date(item.timestamp),
-  }));
-
-  return [...inventoryActivities, ...cartActivities]
-    .sort((a, b) => b.time - a.time)
-    .slice(0, 10);
-};
 
   const getActivityFeed = () => {
     const feed = [];
