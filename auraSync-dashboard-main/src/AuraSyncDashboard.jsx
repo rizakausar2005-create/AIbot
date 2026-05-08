@@ -6,7 +6,6 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 
-
 const API = "http://localhost:3000/api";
 
 function EmptyState({ icon, message, sub }) {
@@ -21,7 +20,6 @@ function EmptyState({ icon, message, sub }) {
     </div>
   );
 }
-
 
 function Sidebar({ active, setActive }) {
   const pages = ["Dashboard", "Inventory", "Customer Carts", "Alerts", "Admin Panel"];
@@ -151,7 +149,6 @@ function AlertsPage() {
   return (
     <>
       <div>
-        {/* FLASH DEALS - FEFO HEALTH BARS */}
         <div className="table-container">
           <h2>🔥 Flash Deals</h2>
           {deals.length === 0 ? (
@@ -189,7 +186,6 @@ function AlertsPage() {
           )}
         </div>
 
-        {/* PENDING ITEMS - AI RAW SCAN */}
         <div className="table-container" style={{marginTop: "24px"}}>
           <h2>⚠️ Needs Attention</h2>
           {pending.length === 0 ? (
@@ -227,7 +223,6 @@ function AlertsPage() {
         </div>
       </div>
 
-      {/* AI RAW SCAN MODAL */}
       {selectedScan && (
         <div style={{
           position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)",
@@ -290,7 +285,6 @@ function AdminPanel() {
     <div>
       <h2>Admin Panel</h2>
 
-      {/* GOD MODE BROADCAST BUTTON */}
       <div style={{textAlign: "center", marginBottom: "30px", padding: "20px", background: "#f8fafc", borderRadius: "12px"}}>
         <button
           onClick={broadcastDeals}
@@ -315,7 +309,6 @@ function AdminPanel() {
         )}
       </div>
 
-      {/* STATS CARDS */}
       {stats && (
         <div className="cards">
           {[
@@ -334,7 +327,6 @@ function AdminPanel() {
         </div>
       )}
 
-      {/* ORDERS TABLE */}
       <div className="table-container">
         <h2>Recent Orders</h2>
         {orders.length === 0 ? (
@@ -389,8 +381,6 @@ export default function AuraSyncDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-
-  // FIX 1: Extracted getDepletionForecast out of getActivityFeed so it is properly scoped
   const getDepletionForecast = () => {
     if (cartData.length === 0 || inventoryData.length === 0) return null;
 
@@ -399,14 +389,7 @@ export default function AuraSyncDashboard() {
       const name = cart.item?.split('|')[0]
         .replace('📦 *Product:*', '').trim().slice(0, 20);
       if (name) cartCount[name] = (cartCount[name] || 0) + 1;
-  // Cart data aggregations for charts on Dashboard home
-  const getWeeklySales = () => {
-    const days = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
-    cartData.forEach(item => {
-      if (!item.timestamp) return;
-      const day = new Date(item.timestamp).toLocaleDateString("en-US", { weekday: "short" });
-      if (days[day] !== undefined) days[day]++;
-    });
+    }); // <-- FIX 1: This loop was missing its closing bracket!
 
     const topEntry = Object.entries(cartCount).sort((a, b) => b[1] - a[1])[0];
     if (!topEntry) return null;
@@ -438,6 +421,18 @@ export default function AuraSyncDashboard() {
       isUrgent: daysUntilStockout <= 7
     };
   };
+
+  // FIX 2: Extracted these newly pasted chart helper functions out of getDepletionForecast into proper scope
+  const getWeeklySales = () => {
+    const days = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
+    cartData.forEach(item => {
+      if (!item.timestamp) return;
+      const day = new Date(item.timestamp).toLocaleDateString("en-US", { weekday: "short" });
+      if (days[day] !== undefined) days[day]++;
+    });
+    return days; // Added return here so it functions correctly if you use it later
+  };
+
   const getMonthlySales = () => {
     const months = { Jan:0,Feb:0,Mar:0,Apr:0,May:0,Jun:0,Jul:0,Aug:0,Sep:0,Oct:0,Nov:0,Dec:0 };
     cartData.forEach(item => {
@@ -453,6 +448,7 @@ export default function AuraSyncDashboard() {
     cartData.forEach(item => { count[item.item] = (count[item.item] || 0) + 1; });
     return Object.keys(count).map(key => ({ name: key, sales: count[key] }));
   };
+
   const getActivityFeed = () => {
     const activities = [];
 
@@ -489,7 +485,6 @@ export default function AuraSyncDashboard() {
       default:
         return (
           <div>
-            {/* FIX 2: Moved the Depletion Forecast UI block cleanly inside the Dashboard return statement */}
             {(() => {
               const forecast = getDepletionForecast();
               if (!forecast) return null;
@@ -563,7 +558,6 @@ export default function AuraSyncDashboard() {
             {/* 🔥 ROW 1: WEEKLY SALES & TOP PRODUCTS */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", margin: "30px 0" }}>
               
-              {/* 📈 WEEKLY SALES (Real Data) */}
               <div className="table-container">
                 <h3 style={{ marginBottom: "20px", color: "#1f2937" }}>📈 Weekly Sales</h3>
                 <ResponsiveContainer width="100%" height={250}>
@@ -580,7 +574,6 @@ export default function AuraSyncDashboard() {
                 </ResponsiveContainer>
               </div>
 
-              {/* 🥇 TOP PRODUCTS (Real Data) */}
               <div className="table-container">
                 <h3 style={{ marginBottom: "20px", color: "#1f2937" }}>🥇 Top Products</h3>
                 <ResponsiveContainer width="100%" height={250}>
@@ -653,7 +646,6 @@ export default function AuraSyncDashboard() {
 
   return (
     <div className="container">
-      {/* FIX 3: Moved the <style> block directly into the returned JSX wrapper where it belongs */}
       <style>{`
         @keyframes pulse {
           0%, 100% { opacity: 1; transform: scale(1); }
@@ -668,7 +660,6 @@ export default function AuraSyncDashboard() {
       
       <Toaster position="top-right" theme="dark" richColors />
       <Sidebar active={active} setActive={setActive} />
-      {/* FIX 4: Removed the duplicate <Sidebar /> that was accidentally placed here */}
       
       <div className="main">
         <h1>Warehouse Dashboard</h1>
@@ -677,4 +668,4 @@ export default function AuraSyncDashboard() {
       </div>
     </div>
   );
-});
+}
