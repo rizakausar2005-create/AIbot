@@ -6,6 +6,7 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 
+
 const API = "http://localhost:3000/api";
 
 function EmptyState({ icon, message, sub }) {
@@ -20,6 +21,7 @@ function EmptyState({ icon, message, sub }) {
     </div>
   );
 }
+
 
 function Sidebar({ active, setActive }) {
   const pages = ["Dashboard", "Inventory", "Customer Carts", "Alerts", "Admin Panel"];
@@ -387,6 +389,7 @@ export default function AuraSyncDashboard() {
     return () => clearInterval(interval);
   }, []);
 
+
   // FIX 1: Extracted getDepletionForecast out of getActivityFeed so it is properly scoped
   const getDepletionForecast = () => {
     if (cartData.length === 0 || inventoryData.length === 0) return null;
@@ -396,6 +399,13 @@ export default function AuraSyncDashboard() {
       const name = cart.item?.split('|')[0]
         .replace('📦 *Product:*', '').trim().slice(0, 20);
       if (name) cartCount[name] = (cartCount[name] || 0) + 1;
+  // Cart data aggregations for charts on Dashboard home
+  const getWeeklySales = () => {
+    const days = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
+    cartData.forEach(item => {
+      if (!item.timestamp) return;
+      const day = new Date(item.timestamp).toLocaleDateString("en-US", { weekday: "short" });
+      if (days[day] !== undefined) days[day]++;
     });
 
     const topEntry = Object.entries(cartCount).sort((a, b) => b[1] - a[1])[0];
@@ -428,7 +438,21 @@ export default function AuraSyncDashboard() {
       isUrgent: daysUntilStockout <= 7
     };
   };
+  const getMonthlySales = () => {
+    const months = { Jan:0,Feb:0,Mar:0,Apr:0,May:0,Jun:0,Jul:0,Aug:0,Sep:0,Oct:0,Nov:0,Dec:0 };
+    cartData.forEach(item => {
+      if (!item.timestamp) return;
+      const month = new Date(item.timestamp).toLocaleDateString("en-US", { month: "short" });
+      if (months[month] !== undefined) months[month]++;
+    });
+    return Object.keys(months).map(m => ({ month: m, sales: months[m] }));
+  };
 
+  const getTopProducts = () => {
+    const count = {};
+    cartData.forEach(item => { count[item.item] = (count[item.item] || 0) + 1; });
+    return Object.keys(count).map(key => ({ name: key, sales: count[key] }));
+  };
   const getActivityFeed = () => {
     const activities = [];
 
@@ -653,4 +677,4 @@ export default function AuraSyncDashboard() {
       </div>
     </div>
   );
-}
+});
