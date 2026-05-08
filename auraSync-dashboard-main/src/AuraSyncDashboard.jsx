@@ -1,3 +1,4 @@
+import { Toaster, toast } from 'sonner';
 import { useEffect, useState } from "react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
@@ -6,6 +7,19 @@ import {
 } from 'recharts';
 
 const API = "http://localhost:3000/api";
+
+function EmptyState({ icon, message, sub }) {
+  return (
+    <div style={{
+      textAlign: "center", padding: "48px 24px",
+      display: "flex", flexDirection: "column", alignItems: "center", gap: "12px"
+    }}>
+      <div style={{ fontSize: "48px" }}>{icon}</div>
+      <p style={{ fontSize: "16px", fontWeight: "600", color: "#374151", margin: 0 }}>{message}</p>
+      {sub && <p style={{ fontSize: "13px", color: "#9ca3af", margin: 0 }}>{sub}</p>}
+    </div>
+  );
+}
 
 function Sidebar({ active, setActive }) {
   const pages = ["Dashboard", "Inventory", "Customer Carts", "Alerts", "Admin Panel"];
@@ -256,13 +270,17 @@ function AdminPanel() {
     setBroadcasting(true);
     setMessage("");
     try {
-      const res = await fetch(`${API}/trigger-broadcast`, { method: "POST" });
-      const data = await res.json();
-      setMessage(res.ok ? "✅ Broadcast sent to all customers!" : `❌ ${data.error}`);
+        const res = await fetch(`${API}/trigger-broadcast`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+            toast.success("Broadcast fired to all active customers!");
+        } else {
+            toast.error(data.error || "Broadcast failed.");
+        }
     } catch {
-      setMessage("❌ Backend offline");
+        toast.error("Backend offline — bot not running.");
     } finally {
-      setBroadcasting(false);
+        setBroadcasting(false);
     }
   };
 
@@ -365,9 +383,51 @@ export default function AuraSyncDashboard() {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 3000);
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  // FIX 1: Extracted getDepletionForecast out of getActivityFeed so it is properly scoped
+  const getDepletionForecast = () => {
+    if (cartData.length === 0 || inventoryData.length === 0) return null;
+
+    const cartCount = {};
+    cartData.forEach(cart => {
+      const name = cart.item?.split('|')[0]
+        .replace('📦 *Product:*', '').trim().slice(0, 20);
+      if (name) cartCount[name] = (cartCount[name] || 0) + 1;
+    });
+
+    const topEntry = Object.entries(cartCount).sort((a, b) => b[1] - a[1])[0];
+    if (!topEntry) return null;
+
+    const [productName, cartHits] = topEntry;
+
+    const inventoryItem = inventoryData.find(item =>
+      item.productName?.toLowerCase().includes(productName.toLowerCase().slice(0, 10))
+    );
+    const stock = inventoryItem?.totalQuantity || 1;
+
+    const timestamps = cartData
+      .filter(c => c.timestamp)
+      .map(c => new Date(c.timestamp).getTime())
+      .sort((a, b) => a - b);
+
+    const daysSinceFirst = timestamps.length > 1
+      ? Math.max(1, (Date.now() - timestamps[0]) / (1000 * 60 * 60 * 24))
+      : 1;
+
+    const dailyRate = cartHits / daysSinceFirst;
+    const daysUntilStockout = Math.floor(stock / dailyRate);
+
+    return {
+      productName,
+      stock,
+      dailyRate: dailyRate.toFixed(1),
+      daysUntilStockout,
+      isUrgent: daysUntilStockout <= 7
+    };
+  };
 
   const getActivityFeed = () => {
     const activities = [];
@@ -405,12 +465,40 @@ export default function AuraSyncDashboard() {
       default:
         return (
           <div>
+            {/* FIX 2: Moved the Depletion Forecast UI block cleanly inside the Dashboard return statement */}
+            {(() => {
+              const forecast = getDepletionForecast();
+              if (!forecast) return null;
+              return (
+                <div style={{
+                  background: forecast.isUrgent ? "#fef2f2" : "#f0fdf4",
+                  border: `1px solid ${forecast.isUrgent ? "#fca5a5" : "#86efac"}`,
+                  borderRadius: "12px", padding: "20px", marginBottom: "24px"
+                }}>
+                  <h3 style={{ margin: "0 0 8px 0", color: forecast.isUrgent ? "#dc2626" : "#166534" }}>
+                    {forecast.isUrgent ? "🚨" : "📊"} Depletion Forecast
+                  </h3>
+                  <p style={{ margin: 0, fontSize: "15px", color: "#374151" }}>
+                    {forecast.isUrgent
+                      ? `⚠️ Trend Alert: ${forecast.productName} is moving fast at ${forecast.dailyRate} units/day. Predicted stockout in ${forecast.daysUntilStockout} day(s).`
+                      : `✅ ${forecast.productName} has ~${forecast.daysUntilStockout} days of stock at current demand rate.`
+                    }
+                  </p>
+                  <p style={{ margin: "6px 0 0 0", fontSize: "12px", color: "#9ca3af" }}>
+                    Current stock: {forecast.stock} units · Demand: {forecast.dailyRate} units/day
+                  </p>
+                </div>
+              );
+            })()}
+
             {/* LIVE ACTIVITY FEED */}
             <div style={{
               background: "#f8fafc", padding: "24px", borderRadius: "12px", marginBottom: "24px",
               border: "1px solid #e5e7eb"
             }}>
-              <h3 style={{margin: "0 0 16px 0", color: "#374151"}}>⚡ Live Activity</h3>
+              <h3 style={{margin: "0 0 16px 0", color: "#374151", display: "flex", alignItems: "center"}}>
+                <span className="pulse-dot"></span>⚡ Live Activity
+              </h3>
               {getActivityFeed().length === 0 ? (
                 <p style={{color: "#9ca3af", fontStyle: "italic"}}>No activity yet</p>
               ) : (
@@ -427,6 +515,7 @@ export default function AuraSyncDashboard() {
                 ))
               )}
             </div>
+
             {/* 🃏 TOP STATS CARDS */}
             <div className="cards">
               <div className="card">
@@ -532,7 +621,6 @@ export default function AuraSyncDashboard() {
               </ResponsiveContainer>
             </div>
 
-            
             <InventoryTable data={inventoryData} />
           </div>
         );
@@ -541,7 +629,23 @@ export default function AuraSyncDashboard() {
 
   return (
     <div className="container">
+      {/* FIX 3: Moved the <style> block directly into the returned JSX wrapper where it belongs */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.3); }
+        }
+        .pulse-dot {
+          width: 8px; height: 8px; background: #22c55e;
+          border-radius: 50%; display: inline-block;
+          animation: pulse 1.5s infinite; margin-right: 8px;
+        }
+      `}</style>
+      
+      <Toaster position="top-right" theme="dark" richColors />
       <Sidebar active={active} setActive={setActive} />
+      {/* FIX 4: Removed the duplicate <Sidebar /> that was accidentally placed here */}
+      
       <div className="main">
         <h1>Warehouse Dashboard</h1>
         <p>Admin</p>
