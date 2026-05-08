@@ -5,14 +5,13 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 
-<<<<<<< HEAD
-const API = "http://localhost:3000/api";
-=======
 // ============================================================
 // BASE API URL — points to AuraSync WhatsApp bot backend
 // ============================================================
-const API = "http://172.19.1.213:3000/api";
->>>>>>> 59b5e7d8055aa0c4846e1485fef4ea2554c9894b
+
+const API = "http://localhost:3000/api";
+
+
 
 function Sidebar({ active, setActive }) {
   const pages = ["Dashboard", "Inventory", "Customer Carts", "Alerts", "Admin Panel"];
@@ -376,8 +375,7 @@ export default function AuraSyncDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-<<<<<<< HEAD
-=======
+
   // Cart data aggregations for charts on Dashboard home
   const getWeeklySales = () => {
     const days = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
@@ -405,7 +403,7 @@ export default function AuraSyncDashboard() {
     return Object.keys(count).map(key => ({ name: key, sales: count[key] }));
   };
 
->>>>>>> 59b5e7d8055aa0c4846e1485fef4ea2554c9894b
+
   const getActivityFeed = () => {
     const activities = [];
 
