@@ -5,14 +5,7 @@ import {
   PieChart, Pie, Cell, Legend
 } from 'recharts';
 
-<<<<<<< HEAD
 const API = "http://localhost:3000/api";
-=======
-// ============================================================
-// BASE API URL — points to AuraSync WhatsApp bot backend
-// ============================================================
-const API = "http://172.19.1.213:3000/api";
->>>>>>> 59b5e7d8055aa0c4846e1485fef4ea2554c9894b
 
 function Sidebar({ active, setActive }) {
   const pages = ["Dashboard", "Inventory", "Customer Carts", "Alerts", "Admin Panel"];
@@ -376,36 +369,6 @@ export default function AuraSyncDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-<<<<<<< HEAD
-=======
-  // Cart data aggregations for charts on Dashboard home
-  const getWeeklySales = () => {
-    const days = { Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0 };
-    cartData.forEach(item => {
-      if (!item.timestamp) return;
-      const day = new Date(item.timestamp).toLocaleDateString("en-US", { weekday: "short" });
-      if (days[day] !== undefined) days[day]++;
-    });
-    return Object.keys(days).map(day => ({ date: day, sales: days[day] }));
-  };
-
-  const getMonthlySales = () => {
-    const months = { Jan:0,Feb:0,Mar:0,Apr:0,May:0,Jun:0,Jul:0,Aug:0,Sep:0,Oct:0,Nov:0,Dec:0 };
-    cartData.forEach(item => {
-      if (!item.timestamp) return;
-      const month = new Date(item.timestamp).toLocaleDateString("en-US", { month: "short" });
-      if (months[month] !== undefined) months[month]++;
-    });
-    return Object.keys(months).map(m => ({ month: m, sales: months[m] }));
-  };
-
-  const getTopProducts = () => {
-    const count = {};
-    cartData.forEach(item => { count[item.item] = (count[item.item] || 0) + 1; });
-    return Object.keys(count).map(key => ({ name: key, sales: count[key] }));
-  };
-
->>>>>>> 59b5e7d8055aa0c4846e1485fef4ea2554c9894b
   const getActivityFeed = () => {
     const activities = [];
 
